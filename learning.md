@@ -34,3 +34,17 @@
         - Cache would grow forever without it 
     - Thread pool = pre-create a fixed number of threads and when a task comes in it goes to an idle thread
     - Background Task = actual work being done by thread pool
+---
+## Chapter 1
+- This will be mostly in C
+- Final product will be around 1200 lines
+- unordered_map is good when you want the fastest lookups and map for when you want range queries
+- Redis is called a **Data structure server** (as it can map a string to hash, list, or sorted set)
+- **in-memory** is RAM and storage is slower
+- Redis is a **Cache** because it is meant to live entirely in RAM so it is fast
+- It is stored in the server's RAM not the clients that is how it works (so when client requests it, it allows for them to get it back super quick)
+    - This allows instead of the server that has the database, it can offload a lot of the work a Redis server
+- list pagination - instead of listing everything at once we can give off a little bit information at a time and basically keep the index, not showing them like a million fields at once
+- Caching servers are the easiest way to scale
+---
+## Chapter 2
