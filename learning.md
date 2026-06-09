@@ -48,3 +48,27 @@
 - Caching servers are the easiest way to scale
 ---
 ## Chapter 2
+- IP address is a unique number assigned to every device connected to network
+    - IP address finds machine but a port finds the program on that machine
+- TCP vs. UDP
+    - TCP = reliable, data arrives guaranteed and in order (Redis)
+    - UDP = fire and forget (faster but unreliable)
+- **connection** is a handshake that client and server do to set up the connection before they start flowing data to each other
+    - OS does this, we just use abstractions: *connect()* and *accept()*
+- Sent as byte stream not as messages so we need protocol in place to handle this
+- TCP produces continuous stream of bytes with no internal boundaries (application protocol has to interpret)
+    - it is not messages, it is a byte stream (we need to figure out some way to decide where the messages start and end)
+- Data Serialization:
+    - **serialization** is object to bytes
+    - **deserialization** is bytes to object
+- Concurrent Programming
+    - We will do event based concurrency (basically we will only use a single thread which does a ton of stuff with a massive to-do list)
+- Socket and file descriptor is just a number the OS gives you to refer to a connection
+    - **Server side**
+        - listening socket
+- 4-tuple is just 4 pieces of info in a specific order like (src_ip, src_port, dst_ip, dst_port) 
+    - **src_ip** = our computer's IP address
+    - **src_port** = local port number our app is using
+    - **dst_ip** = server's IP address we are connecting to
+    - **dst_port** = server's port number we are connecting to
+- Client is the one that recieves and server sends
