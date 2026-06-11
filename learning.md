@@ -5,6 +5,12 @@
 - **Leaderboards** = can return rank in near constant time
 - **Message Queues** = drops task into redis queue and another worker processes that in the background
 - **Rate Limiting** = prevent bots by only allowing so many requests
+- It stands for **Re**mote **Di**ctionary **S**erver
+    - It is a key value store
+    - In memory just means that it stores everything in RAM 
+    - typical databases like postgresql store on disk but we store on RAM instead
+    - the number one job of it is to cache everything
+    - Can track who is logged in currently, live leaderboards, and message queues
 ---
 ## What I am going to learn:
 1. *Network Programming* 
@@ -72,3 +78,42 @@
     - **dst_ip** = server's IP address we are connecting to
     - **dst_port** = server's port number we are connecting to
 - Client is the one that recieves and server sends
+- ** Networking programming ** is just turning an unreliable stream of bytes into a logical conversation
+- Fresh notes (basically me going back over and rereading):
+    - write() / send() copies data into the OS **send buffer**
+    - read() / recv() checks if anything has arrived yet - OS checks the **Receive buffer**
+        - if anything in the OS will copy them over into application memory so we can parse
+    - read() and write() are generic so they work for sockets and files 
+        > In Unix/linux (core philosophy), "Everything is a file"
+    - recv() and send() are socket specific (same as read and write) but they take one more argument at the end:
+        - for network specific tricks
+        - ex. you can peak at data instead of grabbing it (MSG_PEEK)
+    - TCP Byte Stream and Protocols:
+        - TCP = Transmission Control Protocol
+            - It is reliable as it will send small packets and will ask for the packet again if it gets lost
+        - TCP produces a continuous stream of bytes with no internal boundaries
+        - We will have an **application protocol** that makes sense of this byte stream
+        - UDP = User Datagram Protocol
+            - Very efficient as it skips the formal connection process
+            - Does not check if packets arrive so can be slightly unreliable
+            - The **Datagrams** could arrive out of order
+        - **Event loop** is a single thread that manages thousands of connections by rapidly cycling through them (it never stops and waits)
+            - We will have to build buffers for each of our waiting rooms
+    - Data Serialization
+        - objects could be things like strings, structs, lists
+        - **Serialization** is objects to bytes
+        - **Deserialization** is bytes to objects
+        - We won't use JSON or Protobuf so we can be more efficient and not send as many bytes over the network and also have less CPU cycles to decode them
+    - Concurrent Programming
+        - > **Efficient software is required to be able to make full use of hardware**
+        - We are going to do **event-based concurrency** 
+            - insanely fast single thread (instead of 10000 threads so less RAM overhead)
+            - Some famous examples of software that does Event loops right now
+                - NGINX = massive, high speed web server
+                - Node.js = runtime that allows you to write javascript on the backend
+                - Golang = programming language built to handle massive network concurrency
+                - All solve C10k connection problem in same way we are going to
+            - non-blocking means that it doesn't freeze when it asks to read(), it is just able to and if nothing there it just moves on instead of waiting for something to come (which would be blocking)
+            - we are going to make our sockets non-blocking
+            - One interesting problem is that the OS used to have loop through all 10,000 ports but now we solve this with epoll() so basically instead this time when a connection comes we will register it and put it in a dashboard/queue
+    - 
