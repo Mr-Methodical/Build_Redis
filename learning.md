@@ -152,3 +152,9 @@
     - 3 API calls to create a listening socket
         1. *socket()* to obtain socket handle (we get a fd) (ID card for network communication channelt that the OS is handling)
         2. *bind()* tells the OS exactly which port you want and which connection you want it to
+----
+# TCP Server & Client
+fd = socket() is just asking Kernel to set aside resources, and then it returns fd that we have a reference to.
+bind(fd, address) just says which port we want to listen from
+listen(fd) transitions a private socket to a public socket, it tells OS to start keeping a queue of people that try to reach it
+accept(fd) is the blocker and waits till someone has a request
