@@ -41,7 +41,7 @@
     - Thread pool = pre-create a fixed number of threads and when a task comes in it goes to an idle thread
     - Background Task = actual work being done by thread pool
 ---
-## Chapter 1
+## Idea
 - This will be mostly in C
 - Final product will be around 1200 lines
 - unordered_map is good when you want the fastest lookups and map for when you want range queries
@@ -53,7 +53,7 @@
 - list pagination - instead of listing everything at once we can give off a little bit information at a time and basically keep the index, not showing them like a million fields at once
 - Caching servers are the easiest way to scale
 ---
-## Chapter 2
+## Concepts
 - IP address is a unique number assigned to every device connected to network
     - IP address finds machine but a port finds the program on that machine
 - TCP vs. UDP
@@ -116,4 +116,39 @@
             - non-blocking means that it doesn't freeze when it asks to read(), it is just able to and if nothing there it just moves on instead of waiting for something to come (which would be blocking)
             - we are going to make our sockets non-blocking
             - One interesting problem is that the OS used to have loop through all 10,000 ports but now we solve this with epoll() so basically instead this time when a connection comes we will register it and put it in a dashboard/queue
-    - 
+            - a protocol specification is just the rule book for how they communicate
+            - multiplexing = many into one so instead of having 10k ports and each get a new thread we don't do that and instead have our event loop where one does a ton of things
+    - Layers of Protocol
+        - **Network Protocols** = agreed upon set of rules for communication
+        - There are different layers
+            - Higher layer adds new functionality
+            - A lower layer can contain a higher layer
+                - **Encapsulation** (basically we trust lower layer to do its job)
+                    - provides layering ("wrapping data" in pre-existing layers)
+        - layers
+            - IP only handles smaller packets called IP Packets
+            - assembling packets into application data is provided by higher layer like TCP 
+            - **multiplexing** think port number
+                - All this data coming into the computer it needs to know which app to give this data to
+                - UDP/TCP will add a 16 bit port number for this distinguish
+                    - For this it will use a 4-tuple thing which shows ip of source and port of source and also this for destination
+            - TCP for reliability and ordered bytes on IP layer
+- Request-response protocols:
+    - Each request message paired with a response
+    - if we asked what is x, then we expect to get a response like x is 10
+    - most want this except DNS which just wants to be fast
+        - DNS = Domain Name system it is what translates google.com to a server number
+- API = Application Programming Interface
+    - An abstraction to use the code (menu of functions)
+- Socket Primitives:
+    - socket = handle to refer to a connection or something else
+    - API for networking is just called the socket API
+    - On linux a handle is called a **file descriptor** (fd)
+        - Nothing to do with files nor describe anything
+    - *socket()* will return a handle used for creating connections
+        - must be closed at the end to give the resources back to the OS
+    - Listening is saying that you are ready to connect with another port through TCP
+    - Then the listening port can accept when something comes in
+    - 3 API calls to create a listening socket
+        1. *socket()* to obtain socket handle (we get a fd) (ID card for network communication channelt that the OS is handling)
+        2. *bind()* tells the OS exactly which port you want and which connection you want it to
