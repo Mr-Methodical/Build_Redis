@@ -158,3 +158,9 @@ fd = socket() is just asking Kernel to set aside resources, and then it returns 
 bind(fd, address) just says which port we want to listen from
 listen(fd) transitions a private socket to a public socket, it tells OS to start keeping a queue of people that try to reach it
 accept(fd) is the blocker and waits till someone has a request
+socket takes 3 arguments:
+- Domain - how to address (AF_INET for IPv4)
+    - Address family Internet
+- Type - whether it is TCP (SOCK_STREAM) or UDP (SOCK_DGRAM)
+- Protocol (0) - more specification about which protocol
+sin is for socket internet
