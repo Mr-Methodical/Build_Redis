@@ -6,9 +6,52 @@
 #include <cstdio> // for perror()
 #include <cstdlib> // for exit()
 #include <unistd.h>
-#include <cstring> // for strlen()
+#include <cstring> // for strlen() and for memcpy
 #include <cstdint> // for int32_t
 #include <cassert>
+
+const size_t k_max_msg = 4096;
+
+static void msg(const char *msg) {
+    fprintf(stderr, "%s\n", msg);
+}
+
+static int32_t one_request(int connfd) {
+    // 4 byte header:
+    char rbuf[4 + k_max_msg];
+    errno = 0;
+    // we will read the header first
+    int32_t err = read_full(connfd, rbuf, 4);
+    if (err) {
+        // there is some error like EOF or maybe network error
+        // 0 there was not really any error it just got to the end of file
+        msg(errno == 0 ? "EOF" : "read() error");
+        return -1;
+    }
+    uint32_t len = 0;
+    memcpy(&len, rbuf, 4); // we are assuming little endian like the client
+    // should be sending it in litte endian, our little endian cpu will read
+    // it the same way
+    if (len > k_max_msg) {
+        msg("too long");
+        return -1;
+    }
+    // request body
+    err = read_full(connfd, &rbuf[4], len);
+    if (err) {
+        msg("read error");
+        return err;
+    }
+    // we will do something:
+    printf("client says: %.*s", len, &rbuf[4]);
+    // reply using the same protocol:
+    const char reply[] = "world";
+    char wbuf[4 + sizeof(reply)];
+    len = (uint32_t)strlen(reply);
+    memcpy(wbuf, &len, 4);
+    memcpy(&wbuf[4], reply, len);
+    return write_all(connfd, wbuf, 4 + len);
+}
 
 void die(const char *message) {
     perror(message);
@@ -44,6 +87,7 @@ static int32_t write_all(int fd, const char *buf, size_t n) {
         n -= (size_t)rv;
         buf += rv;
     }
+    return 0;
 }
 
 int main() {
