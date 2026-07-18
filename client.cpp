@@ -86,32 +86,50 @@ static int32_t query(int fd, const char *text) {
         msg("read() error");
     }
     // we will do something:
-    printf("server says: %.*s\n", len, rbuf);
+    printf("server says: %.*s\n", len, &rbuf[4]);
     return 0; // for no issues
 }
 
+struct SocketWrapper {
+    int fd;
+    // Constructor
+    SocketWrapper(int file_descriptor) {
+        fd = file_descriptor;
+    }
+    // Destructor automatically closes the object when it dies:
+    ~SocketWrapper() {
+        if (fd >= 0) {
+            close(fd);
+            fd = -1; // we mark it as closed
+        }
+    }
+};
+
 int main() {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
+    int raw_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (raw_fd < 0) {
         die("socket()");
     }
+    // we will give this to my RAII to manage:
+    SocketWrapper conn(raw_fd);
+
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET; // for the address family internet for IPv4
     addr.sin_port = htons(1234);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // to use our own computer
     // 127.0.0.1
-    int rv = connect(fd, (const struct sockaddr *)&addr, sizeof(addr));
+    int rv = connect(conn.fd, (const struct sockaddr *)&addr, sizeof(addr));
     if (rv) {
         die("connect()");
     }
-    char msg[] = "hello";
-    write(fd, msg, strlen(msg));
-    char rbuf[64] = {};
-    ssize_t n = read(fd, rbuf, sizeof(rbuf) - 1);
-    if (n < 0) {
-        die("read()");
+    int32_t err = query(conn.fd, "hello1");
+    if (err) {
+        // note that close(conn.fd) will be autocalled because of RAII
+        return err;
     }
-    printf("server says: %s\n", rbuf);
-    close(fd);
+    err = query(conn.fd, "hello2");
+    if (err) {
+        return err;
+    }
     return 0;
 }
