@@ -9,6 +9,7 @@
 #include <cstring> // for strlen() and for memcpy
 #include <cstdint> // for int32_t
 #include <cassert>
+#include <errno.h>
 
 const size_t k_max_msg = 4096;
 
