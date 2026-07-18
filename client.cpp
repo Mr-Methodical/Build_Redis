@@ -22,10 +22,15 @@ void die(const char *message) {
 static int32_t read_full(int fd, char *buf, size_t n) {
     while (n > 0) {
         ssize_t rv = read(fd, buf, n);
-        if (rv <= 0) {
-            // it would return exactly 0 when EOF, client closed connection
-            // it would be -1 when there is a network error like router crashed
-            return -1; // error as rv should be reading at least one byte
+        if (rv < 0) {
+            if (errno == EINTR) {
+                // it was interupted system call so we can continue like normal
+                continue;
+            }
+            return -1; // any other case we don't allow this
+        }
+        if (rv == 0) {
+            return -1; // for the EOF
         }
         assert((size_t)rv <= n); // this is guaranteed though for no fail
         n -= (size_t)rv;
