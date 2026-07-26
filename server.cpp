@@ -10,6 +10,26 @@
 #include <cassert>
 #include <errno.h> // error handling
 
+static void msg(const char *msg) {
+    fprintf(stderr, "%s\n", msg);
+}
+
+static void msg_errno(const char *msg) {
+    fprintf(stderr, "[errno:%d] %s\n", errno, msg);
+}
+
+static void die(const char *msg) {
+    fprinf(stderr, "[%d] %s\n", errno, msg);
+    abort(); // doesn't even clean up resources, just crashes immediately
+}
+
+// Helper to make a socket non-blocking:
+static void fd_set_nb(int fd) {
+    errno = 0;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (errno)
+}
+
 const size_t k_max_msg = 4096;
 
 using namespace std;
