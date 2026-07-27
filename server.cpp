@@ -19,7 +19,7 @@ static void msg_errno(const char *msg) {
 }
 
 static void die(const char *msg) {
-    fprinf(stderr, "[%d] %s\n", errno, msg);
+    fprintf(stderr, "[%d] %s\n", errno, msg);
     abort(); // doesn't even clean up resources, just crashes immediately
 }
 
@@ -27,12 +27,19 @@ static void die(const char *msg) {
 static void fd_set_nb(int fd) {
     errno = 0;
     int flags = fcntl(fd, F_GETFL, 0);
-    if (errno)
+    if (errno) {
+        die("fcntl error");
+        return;
+    }
+    flags |= O_NONBLOCK;
+    errno = 0;
+    (void)fcntl(fd, F_SETFL, flags); // we are setting our fd with our flags
+    if (errno) {
+        die("fcntl error");
+    }
 }
 
-const size_t k_max_msg = 4096;
-
-using namespace std;
+const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
 
 // Our notebook for each client:
 struct Conn {
