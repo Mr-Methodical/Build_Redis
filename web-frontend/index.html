@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Goose | Custom Redis Backend</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #222; color: white; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
+        canvas { background-color: #87CEEB; border: 4px solid #fff; border-radius: 8px; margin-top: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #ui { position: absolute; top: 150px; text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; display: none; }
+        input { padding: 10px; margin: 10px 0; font-family: monospace; }
+        button { padding: 10px 20px; cursor: pointer; font-family: monospace; font-weight: bold; background: #4CAF50; border: none; color: white; border-radius: 5px; }
+        #leaderboard { margin-top: 20px; text-align: left; background: #333; padding: 15px; border-radius: 5px; width: 300px; display: none; }
+        .lb-entry { display: flex; justify-content: space-between; border-bottom: 1px solid #555; padding: 5px 0; }
+    </style>
+</head>
+<body>
+
+    <h2>Flappy Goose</h2>
+    <p>Powered by Azure, Python, and Redis</p>
+
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+    <div id="ui">
+        <h2>GAME OVER</h2>
+        <h3 id="finalScoreDisplay">Score: 0</h3>
+        <input type="text" id="username" placeholder="Enter Waterloo ID or Name" maxlength="15"><br>
+        <button onclick="submitScore()">Submit Score</button>
+        <button onclick="resetGame()" style="background: #555;">Play Again</button>
+
+        <div id="leaderboard">
+            <h3 style="margin-top:0; text-align:center;">Status</h3>
+            <div id="lb-data">Score saved successfully!</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const ui = document.getElementById("ui");
+        const lb = document.getElementById("leaderboard");
+        const lbData = document.getElementById("lb-data");
+
+        // --- GAME VARIABLES ---
+        let frames = 0, score = 0, gameActive = true;
+        const goose = { x: 50, y: 150, w: 34, h: 24, velocity: 0, gravity: 0.5, jump: -8 };
+        const pipes = [];
+        
+        // Pointing directly to your secure Azure backend via DuckDNS
+        const AZURE_API_URL = "https://flappy-goose-backend.duckdns.org"; 
+
+        // --- GAME LOOP ---
+        function update() {
+            if (!gameActive) return;
+            
+            // Goose physics
+            goose.velocity += goose.gravity;
+            goose.y += goose.velocity;
+
+            // Generate pipes
+            if (frames % 90 === 0) {
+                let gapPosition = Math.random() * (canvas.height - 200) + 50;
+                pipes.push({ x: canvas.width, y: gapPosition, width: 50, gap: 120, passed: false });
+            }
+
+            // Move & check pipes
+            for (let i = 0; i < pipes.length; i++) {
+                let p = pipes[i];
+                p.x -= 3; // Pipe speed
+
+                // Collision detection
+                if (goose.x < p.x + p.width && goose.x + goose.w > p.x && 
+                   (goose.y < p.y || goose.y + goose.h > p.y + p.gap)) {
+                    gameOver();
+                }
+
+                // Score increment
+                if (p.x + p.width < goose.x && !p.passed) {
+                    score++;
+                    p.passed = true;
+                }
+            }
+
+            // Floor/Ceiling collision
+            if (goose.y + goose.h >= canvas.height || goose.y <= 0) gameOver();
+
+            // Cleanup off-screen pipes
+            if (pipes.length > 0 && pipes[0].x < -50) pipes.shift();
+            
+            frames++;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw pipes (Green)
+            ctx.fillStyle = "#228B22";
+            pipes.forEach(p => {
+                ctx.fillRect(p.x, 0, p.width, p.y);
+                ctx.fillRect(p.x, p.y + p.gap, p.width, canvas.height - (p.y + p.gap));
+            });
+
+            // Draw Goose (White body, orange beak)
+            ctx.fillStyle = "#FFF"; // Body
+            ctx.fillRect(goose.x, goose.y, goose.w, goose.h);
+            ctx.fillStyle = "#FFA500"; // Beak
+            ctx.fillRect(goose.x + goose.w, goose.y + 5, 10, 8);
+            ctx.fillStyle = "#000"; // Eye
+            ctx.fillRect(goose.x + 24, goose.y + 4, 4, 4);
+
+            // Draw Score
+            if (gameActive) {
+                ctx.fillStyle = "#000";
+                ctx.font = "30px monospace";
+                ctx.fillText(score, 20, 40);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (gameActive) requestAnimationFrame(loop);
+        }
+
+        // --- CONTROLS ---
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space") {
+                if (gameActive) goose.velocity = goose.jump;
+                else if (ui.style.display === "none") resetGame();
+            }
+        });
+        window.addEventListener("mousedown", () => {
+            if (gameActive) goose.velocity = goose.jump;
+        });
+
+        // --- STATE MANAGEMENT ---
+        function gameOver() {
+            gameActive = false;
+            document.getElementById("finalScoreDisplay").innerText = "Score: " + score;
+            ui.style.display = "block";
+            lb.style.display = "none";
+        }
+
+        function resetGame() {
+            goose.y = 150; goose.velocity = 0;
+            pipes.length = 0; score = 0; frames = 0;
+            ui.style.display = "none";
+            gameActive = true;
+            loop();
+        }
+
+        // --- NETWORK API CALLS ---
+       async function submitScore() {
+        const name = document.getElementById("username").value || "Anonymous_Goose";
+        lb.style.display = "block";
+        lbData.innerHTML = "Saving score...";
+        
+        try {
+            await fetch(`${AZURE_API_URL}/score`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: name, score: score })
+            });
+            
+            // After saving, immediately fetch the leaderboard
+            fetchLeaderboard();
+        } catch (err) {
+            lbData.innerHTML = "<span style='color:red;'>Cannot connect to Azure backend.</span>";
+        }
+    }
+
+    async function fetchLeaderboard() {
+        lbData.innerHTML = "Loading leaderboard...";
+        try {
+            const response = await fetch(`${AZURE_API_URL}/leaderboard`);
+            const data = await response.json(); 
+            
+            lbData.innerHTML = "<h4 style='margin:0 0 10px 0; text-align:center;'>Top Geese Leaderboard</h4>";
+            data.forEach((entry, i) => {
+                lbData.innerHTML += `<div class="lb-entry"><span>${i+1}. ${entry.username}</span> <span>${entry.score}</span></div>`;
+            });
+        } catch (err) {
+            lbData.innerHTML = "<span style='color:red;'>Failed to load leaderboard.</span>";
+        }
+    } 
+
+        loop();
+    </script>
+</body>
+</html>
