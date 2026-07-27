@@ -5,13 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flappy Goose | Custom Redis Backend</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #222; color: white; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
-        canvas { background-color: #87CEEB; border: 4px solid #fff; border-radius: 8px; margin-top: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        #ui { position: absolute; top: 150px; text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; display: none; }
-        input { padding: 10px; margin: 10px 0; font-family: monospace; }
-        button { padding: 10px 20px; cursor: pointer; font-family: monospace; font-weight: bold; background: #4CAF50; border: none; color: white; border-radius: 5px; }
-        #leaderboard { margin-top: 20px; text-align: left; background: #333; padding: 15px; border-radius: 5px; width: 300px; display: none; }
-        .lb-entry { display: flex; justify-content: space-between; border-bottom: 1px solid #555; padding: 5px 0; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #222; 
+            color: white; 
+            font-family: monospace; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+        }
+        canvas { 
+            background-color: #87CEEB; 
+            border: 4px solid #fff; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+        }
+        #ui { 
+            position: absolute; 
+            top: 150px; 
+            text-align: center; 
+            background: rgba(0,0,0,0.85); 
+            padding: 20px; 
+            border-radius: 10px; 
+            display: none; 
+            width: 300px;
+        }
+        input { 
+            padding: 10px; 
+            margin: 10px 0; 
+            font-family: monospace; 
+            width: 80%;
+            text-align: center;
+        }
+        button { 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            font-family: monospace; 
+            font-weight: bold; 
+            background: #4CAF50; 
+            border: none; 
+            color: white; 
+            border-radius: 5px; 
+            margin: 5px;
+        }
+        #leaderboard { 
+            margin-top: 15px; 
+            text-align: left; 
+            background: #333; 
+            padding: 15px; 
+            border-radius: 5px; 
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .lb-entry { 
+            display: flex; 
+            justify-content: space-between; 
+            border-bottom: 1px solid #555; 
+            padding: 5px 0; 
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -29,8 +83,7 @@
         <button onclick="resetGame()" style="background: #555;">Play Again</button>
 
         <div id="leaderboard">
-            <h3 style="margin-top:0; text-align:center;">Status</h3>
-            <div id="lb-data">Score saved successfully!</div>
+            <div id="lb-data">Ready to save score...</div>
         </div>
     </div>
 
@@ -138,7 +191,8 @@
             gameActive = false;
             document.getElementById("finalScoreDisplay").innerText = "Score: " + score;
             ui.style.display = "block";
-            lb.style.display = "none";
+            lb.style.display = "block";
+            lbData.innerHTML = "Ready to save score...";
         }
 
         function resetGame() {
@@ -152,21 +206,35 @@
         // --- NETWORK API CALLS ---
         async function submitScore() {
             const name = document.getElementById("username").value || "Anonymous_Goose";
-            lb.style.display = "block";
             lbData.innerHTML = "Sending score to Azure...";
             
             try {
-                // Matches the /score endpoint in your Python backend
-                const response = await fetch(`${AZURE_API_URL}/score`, {
+                await fetch(`${AZURE_API_URL}/score`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: name, score: score })
                 });
                 
-                const result = await response.json();
-                lbData.innerHTML = `<span style='color:lightgreen;'>${result.status}</span>`;
+                // Fetch the live leaderboard from Redis
+                fetchLeaderboard();
             } catch (err) {
                 lbData.innerHTML = "<span style='color:red;'>Cannot connect to Azure backend.</span>";
+            }
+        }
+
+        async function fetchLeaderboard() {
+            lbData.innerHTML = "Loading leaderboard...";
+            try {
+                const response = await fetch(`${AZURE_API_URL}/leaderboard`);
+                const data = await response.json(); 
+                
+                let html = "<h4 style='margin:0 0 8px 0; text-align:center;'>Top Geese Leaderboard</h4>";
+                data.forEach((entry, i) => {
+                    html += `<div class="lb-entry"><span>${i+1}. ${entry.username}</span> <span><b>${entry.score}</b></span></div>`;
+                });
+                lbData.innerHTML = html;
+            } catch (err) {
+                lbData.innerHTML = "<span style='color:red;'>Failed to load leaderboard.</span>";
             }
         }
 
