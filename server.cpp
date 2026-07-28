@@ -24,6 +24,8 @@ static void die(const char *msg) {
 }
 
 // Helper to make a socket non-blocking:
+// because usually when we do accept(), read(), write() we will just completely
+// freeze
 static void fd_set_nb(int fd) {
     errno = 0;
     int flags = fcntl(fd, F_GETFL, 0);
@@ -53,4 +55,29 @@ struct Conn {
     // buffered input and output
     std::vector<uint8_t> incoming; // incomplete messages being read
     std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
+};
+
+int main() {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        die("socket()");
+    }
+    int val = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+
+    struct sockaddr_in addr = {};
+    addr.sin_family = AF_INET; // we use IPv4
+    addr.sin_port = htons(1234); // convert from little endian to big endian
+    // because network protocol is big endian and cpu is little endian
+    addr.sin_addr.s_addr = htonl(0);
+    int rv = bind(fd, (const struct sockaddr *)&addr, sizeof(addr));
+    if (rv) {
+        die("bind()");
+    }
+    rv = listen(fd, SOMAXCONN);
+    if (rv) {
+        die("listen()");
+    }
+    // make the main listening socket non-blocking
+    fd_set_nb(fd);
 }
