@@ -80,4 +80,24 @@ int main() {
     }
     // make the main listening socket non-blocking
     fd_set_nb(fd);
+
+    // checklist that we will hand to OS:
+    std::vector<struct pollfd> poll_args;
+    // pollfd has 3 fields: fd, events to tell the OS "wake me up when I am
+    // allowed to read/write", and revents is what is actually safe to do right 
+    // now
+    while (true) {
+        // clear from the previous iteration
+        poll_args.clear();
+
+        // Note: POLLIN for listening socket means that it is checking for 
+        // new connections, but POLLIN for a connection means that we are
+        // pulling in data from that client
+
+        // Main listening socket on checklist first to accept new connections
+        struct pollfd pfd = {fd, POLLIN, 0};
+        poll_args.push_back(pfd);
+        
+
+    }
 }
