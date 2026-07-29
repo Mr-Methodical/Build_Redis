@@ -23,12 +23,29 @@ static void die(const char *msg) {
     abort(); // doesn't even clean up resources, just crashes immediately
 }
 
+// accepting the connection that is knocking at our door
+static Conn *handle_accept(int fd) {
+    // accept:
+    struct sockaddr_in client_addr = {}; // for IPv4
+    socklen_t addrlen = sizeof(client_addr);
+    int conn_fd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
+    if (conn_fd < 0) {
+        return NULL;
+    }
+    // set the new connection to non-blocking mode:
+    fd_set_nb(conn_fd);
+    Conn *conn = new Conn();
+    conn->fd = conn_fd;
+    conn->want_read = true; // read what the connecting person is telling us
+    return conn;
+}
+
 // Helper to make a socket non-blocking:
 // because usually when we do accept(), read(), write() we will just completely
 // freeze
 static void fd_set_nb(int fd) {
     errno = 0;
-    int flags = fcntl(fd, F_GETFL, 0);
+    int flags = fcntl(fd, F_GETFL, 0); // gets the current flags
     if (errno) {
         die("fcntl error");
         return;
@@ -40,6 +57,7 @@ static void fd_set_nb(int fd) {
         die("fcntl error");
     }
 }
+
 
 const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
 
@@ -56,7 +74,6 @@ struct Conn {
     std::vector<uint8_t> incoming; // incomplete messages being read
     std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
 };
-
 
 int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
