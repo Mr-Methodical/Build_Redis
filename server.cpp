@@ -89,6 +89,7 @@ int main() {
     // pollfd has 3 fields: fd, events to tell the OS "wake me up when I am
     // allowed to read/write", and revents is what is actually safe to do right 
     // now
+    // the event loop:
     while (true) {
         // clear from the previous iteration
         poll_args.clear();
@@ -114,6 +115,52 @@ int main() {
             }
             poll_args.push_back(pfd); // this is task we want to do this turn
         }
+        
+        // now we are waiting for readiness
+        // data method is for giving a pointer to the first element
+        int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), -1);
+        // poll is the only blocking call, only wakes up when one of fds ready
+        if (rv < 0 && errno == EINTR) {
+            // this is a signal like resizing terminal window or background
+            // timer, when signal hits it triggers poll
+            continue;
+        }
+        // real error we return
+        if (rv < 0) {
+            die("poll()");
+        }
 
+        // handle the listening socket
+        if (poll_args[0].revents) {
+            if (Conn *conn = handle_accept(fd)) {
+                // put into the map
+                if (fd2conn.size() <= (size_t)conn->fd) {
+                    fd2conn.resize(conn->fd + 1);
+                }
+                fd2conn[conn->fd] = conn;
+            }
+        }
+
+        // now handle connection sockets:
+        for (size_t i = 1; i < poll_args.size(); ++i) {
+            uint32_t ready = poll_args[i].revents;
+            Conn *conn = fd2conn[poll_args[i].fd];
+            if (ready & POLLIN) { // the POLLIN is all 0 except for 
+                // index where it is on so we are testing if that index is on
+                // for ready
+                handle_read(conn); // this is just the application logic
+            }
+            if (ready & POLLOUT) {
+                handle_write(conn); // more applciation logic we need to write
+            }
+            // ready & POLLERR if OS noticed they pulled the plug on the 
+            // connection, and conn->want_close was that our application decided
+            // that we wanted to close the connection
+            if ((ready & POLLERR) || conn->want_close) {
+                (void)close(conn->fd); // we don't care about the return value
+                fd2conn[conn->fd] = NULL;
+                delete conn;
+            }
+        }
     }
 }
