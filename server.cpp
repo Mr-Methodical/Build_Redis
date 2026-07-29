@@ -57,6 +57,7 @@ struct Conn {
     std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
 };
 
+
 int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
@@ -81,6 +82,8 @@ int main() {
     // make the main listening socket non-blocking
     fd_set_nb(fd);
 
+    // a flat array where index matches the client's fd
+    std::vector<Conn *> fd2conn; 
     // checklist that we will hand to OS:
     std::vector<struct pollfd> poll_args;
     // pollfd has 3 fields: fd, events to tell the OS "wake me up when I am
@@ -97,7 +100,20 @@ int main() {
         // Main listening socket on checklist first to accept new connections
         struct pollfd pfd = {fd, POLLIN, 0};
         poll_args.push_back(pfd);
-        
+        // we are consturcting the fd list for poll();
+        for (Conn *conn : fd2conn) {
+            if (!conn) {
+                continue; // as there is not connection here
+            }
+            struct pollfd pfd = {conn->fd, POLLERR, 0};
+            if (conn->want_read) {
+                pfd.events |= POLLIN;
+            }
+            if (conn->want_write) {
+                pfd.events |= POLLOUT;
+            }
+            poll_args.push_back(pfd); // this is task we want to do this turn
+        }
 
     }
 }
