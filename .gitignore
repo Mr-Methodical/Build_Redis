@@ -1,0 +1,12 @@
+# Compiled binaries (build output, not source)
+/server
+/client
+
+# Object files and other build artifacts
+*.o
+*.out
+*.a
+
+# Editor / OS cruft
+*.swp
+.DS_Store
