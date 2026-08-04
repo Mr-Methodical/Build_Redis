@@ -36,8 +36,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # Serve only the Flappy Goose demo so it stays at the site root
+          path: 'demo/flappy-goose'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
