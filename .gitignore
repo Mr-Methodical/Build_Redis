@@ -10,3 +10,4 @@
 # Editor / OS cruft
 *.swp
 .DS_Store
+.claude/
