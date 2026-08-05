@@ -10,6 +10,20 @@
 #include <cassert>
 #include <errno.h> // error handling
 
+// Our notebook for each client:
+struct Conn {
+    int fd = -1; // Clients table number that we refer to it as
+
+    // Application intention
+    bool want_read = false; // true if we want client to send us data
+    bool want_write = false; // true if we have response to send back
+    bool want_close = false; // true if there is an error, kick client
+
+    // buffered input and output
+    std::vector<uint8_t> incoming; // incomplete messages being read
+    std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
+};
+
 static void msg(const char *msg) {
     fprintf(stderr, "%s\n", msg);
 }
@@ -21,23 +35,6 @@ static void msg_errno(const char *msg) {
 static void die(const char *msg) {
     fprintf(stderr, "[%d] %s\n", errno, msg);
     abort(); // doesn't even clean up resources, just crashes immediately
-}
-
-// accepting the connection that is knocking at our door
-static Conn *handle_accept(int fd) {
-    // accept:
-    struct sockaddr_in client_addr = {}; // for IPv4
-    socklen_t addrlen = sizeof(client_addr);
-    int conn_fd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
-    if (conn_fd < 0) {
-        return NULL;
-    }
-    // set the new connection to non-blocking mode:
-    fd_set_nb(conn_fd);
-    Conn *conn = new Conn();
-    conn->fd = conn_fd;
-    conn->want_read = true; // read what the connecting person is telling us
-    return conn;
 }
 
 // Helper to make a socket non-blocking:
@@ -58,22 +55,107 @@ static void fd_set_nb(int fd) {
     }
 }
 
+// accepting the connection that is knocking at our door
+static Conn *handle_accept(int fd) {
+    // accept:
+    struct sockaddr_in client_addr = {}; // for IPv4
+    socklen_t addrlen = sizeof(client_addr);
+    int conn_fd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
+    if (conn_fd < 0) {
+        return NULL;
+    }
+    // set the new connection to non-blocking mode:
+    fd_set_nb(conn_fd);
+    Conn *conn = new Conn();
+    conn->fd = conn_fd;
+    conn->want_read = true; // read what the connecting person is telling us
+    return conn;
+}
+
+// append to the back:
+static void
+buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len) {
+    buf.insert(buf.end(), data, data + len);
+}
+
+// remove from the front:
+static void buf_consume(std::vector<uint8_t> &buf, size_t n) {
+    buf.erase(buf.begin(), buf.begin() + n);
+}
+
+// if there is enough data then we will process the request
+static bool try_one_request(Conn *conn) {
+    // try to parse the accumulated buffer
+    // Our protocol is that the message header is the first 4 bytes, and it
+    // tells us how long our message is going to be
+    if (conn->incoming.size() < 4) {
+        return false; // we need to read more instead
+    }
+    uint32_t len = 0;
+    memcpy(&len, conn->incoming.data(), 4);
+    if (len > k_max_msg) {
+        // this is a protocol error because we can only take so big
+        conn->want_close = true;
+        return false;
+    }
+    // protocol: message body
+    if (4 + len > conn->incoming.size()) {
+        return false; // we actually want to read the rest of the message
+        // like we haven't been given the full message yet
+    }
+    const uint8_t *request = &conn->incoming[4]; // address to message
+    // Process the parsed message
+    // ...
+    // Generate the response (echo)
+    buf_append(conn->outgoing, (const uint8_t *)&len, 4);
+    buf_append(conn->outgoing, request, len);
+    // remove the message from conn::incoming
+    buf_consume(conn->incoming, 4 + len);
+    return true; // we were able to read it
+}
+
+static void handle_read(Conn *conn) {
+    // non-blocking read:
+    uint8_t buf[64 * 1024];
+    ssize_t rv = read(conn->fd, buf, sizeof(buf));
+    if (rv <= 0) {
+        // case of IO error or EOF where rv == 0
+        conn->want_close = true;
+        return;
+    }
+    // add new data to the conn->incoming buffer
+    buf_append(conn->incoming, buf, (size_t)rv);
+    // try to parse the accumulated buffer
+    // Process the parsed message
+    // remove the message from from conn->incoming
+    try_one_request(conn);
+    // update the readiness intention
+    if (conn->outgoing.size() > 0) {
+        // we have a response that we want to give like to send back
+        conn->want_read = false;
+        conn->want_write = true;
+    } // else we want to keep reading what they client wants to say
+}
+
+// non-blocking write:
+static void handle_write(Conn *conn) {
+    assert(conn->outgoing.size() > 0);
+    ssize_t rv = write(conn->fd, conn->outgoing.data(), conn->outgoing.size());
+    if (rv < 0) {
+        conn->want_close = true; // like if not able to write
+        return;
+    }
+    // remove the writtend data from the outgoing
+    buf_consume(conn->outgoing, (size_t)rv);
+    // update the readiness intention so we can start recieving messages again
+    if (conn->outgoing.size() == 0) {
+        // all data has been sent out, now we can read what they respond with
+        conn->want_read = true;
+        conn->want_write = false;
+    } // else we will just still want to write
+}
 
 const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
-
-// Our notebook for each client:
-struct Conn {
-    int fd = -1; // Clients table number that we refer to it as
-
-    // Application intention
-    bool want_read = false; // true if we want client to send us data
-    bool want_write = false; // true if we have response to send back
-    bool want_close = false; // true if there is an error, kick client
-
-    // buffered input and output
-    std::vector<uint8_t> incoming; // incomplete messages being read
-    std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
-};
 
 int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
