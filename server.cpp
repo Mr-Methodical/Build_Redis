@@ -10,6 +10,8 @@
 #include <cassert>
 #include <errno.h> // error handling
 
+const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
+
 // Our notebook for each client:
 struct Conn {
     int fd = -1; // Clients table number that we refer to it as
@@ -106,10 +108,12 @@ static bool try_one_request(Conn *conn) {
     const uint8_t *request = &conn->incoming[4]; // address to message
     // Process the parsed message
     // ...
-    // Generate the response (echo)
+    // Generate the response (echo) - we are just sending back their message
     buf_append(conn->outgoing, (const uint8_t *)&len, 4);
     buf_append(conn->outgoing, request, len);
     // remove the message from conn::incoming
+    // we don't clear it because there could potentially be another part of the
+    // next message on there.
     buf_consume(conn->incoming, 4 + len);
     return true; // we were able to read it
 }
@@ -128,7 +132,8 @@ static void handle_read(Conn *conn) {
     // try to parse the accumulated buffer
     // Process the parsed message
     // remove the message from from conn->incoming
-    try_one_request(conn);
+    // we keep reading off all the requests
+    while (try_one_request(conn)) {}
     // update the readiness intention
     if (conn->outgoing.size() > 0) {
         // we have a response that we want to give like to send back
@@ -154,8 +159,6 @@ static void handle_write(Conn *conn) {
         conn->want_write = false;
     } // else we will just still want to write
 }
-
-const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
 
 int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
