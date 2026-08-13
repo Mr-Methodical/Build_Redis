@@ -12,6 +12,8 @@
 
 const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
 
+static void handle_write(Conn *conn);
+
 // Our notebook for each client:
 struct Conn {
     int fd = -1; // Clients table number that we refer to it as
@@ -139,6 +141,10 @@ static void handle_read(Conn *conn) {
         // we have a response that we want to give like to send back
         conn->want_read = false;
         conn->want_write = true;
+        // The socket is probably ready for us to write back to it. We 
+        // will try to write to it without waiting for next iteration 
+        // because that can be slow
+        return handle_write(conn);
     } // else we want to keep reading what they client wants to say
 }
 
@@ -146,6 +152,10 @@ static void handle_read(Conn *conn) {
 static void handle_write(Conn *conn) {
     assert(conn->outgoing.size() > 0);
     ssize_t rv = write(conn->fd, conn->outgoing.data(), conn->outgoing.size());
+    if (rv < 0 && errno == EAGAIN) {
+        return; // we are actually not ready yet, there could be something
+                // the client is still sending requests in so it is clogged
+    }
     if (rv < 0) {
         conn->want_close = true; // like if not able to write
         return;
