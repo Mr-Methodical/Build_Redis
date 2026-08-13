@@ -12,7 +12,14 @@
 
 const size_t k_max_msg = 32 << 20; // 32 megabytes is the most we will allow
 
-static void handle_write(Conn *conn);
+// for the incoming and outgoing buffers that store the info
+struct Buffer {
+    std::vector<uint8_t> buf;
+    size_t head = 0; // where the unread data will start
+    // Helper methods so it acts like a normal vector:
+    size_t size() const { return buf.size() - head; }
+    const uint8_t *data() const { return buf.data() + head; }
+};
 
 // Our notebook for each client:
 struct Conn {
@@ -24,9 +31,11 @@ struct Conn {
     bool want_close = false; // true if there is an error, kick client
 
     // buffered input and output
-    std::vector<uint8_t> incoming; // incomplete messages being read
-    std::vector<uint8_t> outgoing; // responses that haven't fully sent yet
+    Buffer incoming; // incomplete messages being read
+    Buffer outgoing; // responses that haven't fully sent yet
 };
+
+static void handle_write(Conn *conn);
 
 static void msg(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -78,13 +87,24 @@ static Conn *handle_accept(int fd) {
 
 // append to the back:
 static void
-buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len) {
-    buf.insert(buf.end(), data, data + len);
+buf_append(Buffer &b, const uint8_t *data, size_t len) {
+    // we can move data to front to make room, but only do this when the 
+    // size is more than half the array so it is amortized O(1)
+    if (b.head > 0 && b.head > b.buf.size() / 2) {
+        size_t actual_data_len = b.size();
+        // shift data to the front
+        memmove(b.buf.data(), b.buf.data() + b.head, actual_data_len);
+        b.buf.resize(actual_data_len);
+        b.head = 0;
+    }
+    // in the other cases we can just dynamically allocate to the back, and 
+    // keep our O(1) operation
+    b.buf.insert(b.buf.end(), data, data + len);
 }
 
 // remove from the front:
-static void buf_consume(std::vector<uint8_t> &buf, size_t n) {
-    buf.erase(buf.begin(), buf.begin() + n);
+static void buf_consume(Buffer &b, size_t n) {
+    b.head += n;
 }
 
 // if there is enough data then we will process the request
@@ -107,7 +127,7 @@ static bool try_one_request(Conn *conn) {
         return false; // we actually want to read the rest of the message
         // like we haven't been given the full message yet
     }
-    const uint8_t *request = &conn->incoming[4]; // address to message
+    const uint8_t *request = conn->incoming.data() + 4; // address to message
     // Process the parsed message
     // ...
     // Generate the response (echo) - we are just sending back their message
